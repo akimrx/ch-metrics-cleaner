@@ -1,0 +1,7 @@
+clickhouse:
+  fqdn: localhost
+  http_port: 8123
+  database: example
+  match_key: Example
+  user: default
+  password: strong-password
