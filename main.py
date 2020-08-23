@@ -196,7 +196,7 @@ def main() -> None:
         raise RuntimeError("Table required, but no received. Use --table arg or --help")
 
     if not prefixes and not args.checkout_only:
-        raise RuntimeError("Prefix required, but not received. Use --table arg or --help")
+        raise RuntimeError("Prefix required, but not received. Use --prefix arg or --help")
 
     if args.checkout_only:
         run("", match_key, database, table, check_only=True, await_complete=False)
