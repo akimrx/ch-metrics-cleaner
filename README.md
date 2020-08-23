@@ -55,7 +55,7 @@ optional arguments:
 Commands:
   --prefix str [, ...], -p str [, ...]  Path prefix for search matches
   --key str, -k str                     Primary key (column) for prefix
-                                        mathces
+                                        matches
   --database str, -d str                Database to connect
   --table str, -t str                   Table for search matches
   --checkout-only                       Print only mutation status for table

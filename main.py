@@ -85,8 +85,7 @@ class Color:
 
 def execute_sql(expression: str, result_format: str = "json") -> [str, dict]:
     """Execute SQL-query on ClickHouse server."""
-    # ?user={CH_USER}&password={CH_PASSWD}&
-    url = f"{ENDPOINT}/?query={expression} FORMAT JSON"
+    url = f"{ENDPOINT}/?user={CH_USER}&password={CH_PASSWD}&query={expression} FORMAT JSON"
     r = requests.post(url, headers=BASE_HEADERS)
     logger.debug(r.text)
 
