@@ -158,7 +158,7 @@ def check_mutations(database: str,
     if await_complete:
         print(Color.make("\nWaiting for the mutation to complete...", "grey"))
 
-        while not in_progress == 0 and failed == 0:
+        while in_progress != 0 and failed == 0:
             result = execute_sql(query)
             in_progress, total, success, failed = mutation_status(result)
             time.sleep(0.5)
