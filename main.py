@@ -17,8 +17,8 @@ parser = argparse.ArgumentParser(
     formatter_class=lambda prog: argparse.HelpFormatter(prog, max_help_position=90)
 )
 commands = parser.add_argument_group("Arguments")
-commands.add_argument("--prefix", "-p", metavar="str [, ...]", default="", type=str, help="Prefixes for searching for matches")
-commands.add_argument("--key", "-k", metavar="str", type=str, help="Primary key in the table for searching for matches by prefix")
+commands.add_argument("--prefix", "-p", metavar="str [, ...]", default="", type=str, help="Prefixes for search matches")
+commands.add_argument("--key", "-k", metavar="str", type=str, help="Primary key in the table for search matches by prefix")
 commands.add_argument("--database", "-d", metavar="str", type=str, help="Database to connect")
 commands.add_argument("--table", "-t", metavar="str [, ...]", type=str, required=True, help="Tables for search")
 commands.add_argument("--checkout-only", "-S", action="store_true", help="Print only mutation status for table")
@@ -124,7 +124,7 @@ def delete_data(prefix: str, key: str, database: str, table: str) -> None:
     Changes (UPDATE, DELETE) in Clickhouse start the mutation process.
     Read the documentation.
     """
-    query = f"ALTER TABLE {database}.{table} DELETE WHERE match ({key}, '^{prefix}')"
+    query = f"ALTER TABLE {database}.{table} DELETE WHERE match({key}, '^{prefix}')"
     metadata = f"source={database}.{table} key={key}, prefix={prefix}"
 
     if execute_sql(query, result_format="text"):
@@ -178,16 +178,12 @@ def run(prefix: str,
         key: str,
         database: str,
         table: str,
-        check_only: bool = False,
         force_delete: bool = False,
         await_complete: bool = False) -> None:
     """Starts a prefix match search and checks for mutations.
     The mutation is triggered even if no matches are found.
     This is a feature of the database.
     """
-    if check_only:
-        return check_mutations(database, table, pretty=False)
-
     if force_delete:
         try:
             delete_data(prefix, key, database, table)
@@ -232,7 +228,7 @@ def main() -> None:
 
     if args.checkout_only:
         for table in tables:
-            run("", match_key, database, table, check_only=True, await_complete=False)
+            check_mutations(database, table, pretty=False)
         return
 
     for prefix in prefixes:
