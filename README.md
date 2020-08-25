@@ -43,24 +43,26 @@ python3 main.py \
 
 ## Help message
 ```
-usage: main.py [-h] [--prefix str [, ...]] [--key str]
-                    [--database str] --table str [--checkout-only]
-                    [--await-mutation-end] [--config file]
+usage: main.py [-h] [--prefix str [, ...]] [--key str] [--database str]
+               --table str [, ...] [--checkout-only] [--await-mutation-end]
+               [--force] [--config file]
 
-ClickHouse graphite metrics cleaner
+ClickHouse old metrics cleaner
 
 optional arguments:
   -h, --help                            show this help message and exit
 
-Commands:
-  --prefix str [, ...], -p str [, ...]  Path prefix for search matches
-  --key str, -k str                     Primary key (column) for prefix
-                                        matches
+Arguments:
+  --prefix str [, ...], -p str [, ...]  Prefixes for searching for matches
+  --key str, -k str                     Primary key in the table for searching
+                                        for matches by prefix
   --database str, -d str                Database to connect
-  --table str, -t str                   Table for search matches
-  --checkout-only                       Print only mutation status for table
-  --await-mutation-end                  Lock script execution until the
+  --table str [, ...], -t str [, ...]   Tables for search
+  --checkout-only, -S                   Print only mutation status for table
+  --await-mutation-end, -W              Lock script execution until the
                                         mutation completes
-  --config file                         Custom path to config file in yaml
+  --force, -f                           Delete all matches without asking for
+                                        confirmation (pretty output)
+  --config file, -c file                Custom path to config file in yaml
                                         format
 ```
