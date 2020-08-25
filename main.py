@@ -6,25 +6,29 @@ import yaml
 import time
 import argparse
 import requests
-import logging
 import configparser
 
+from datetime import datetime
+
+# Arguments parse block
 parser = argparse.ArgumentParser(
     prog="main.py",
-    description="ClickHouse graphite metrics cleaner",
+    description="ClickHouse old metrics cleaner",
     formatter_class=lambda prog: argparse.HelpFormatter(prog, max_help_position=90)
 )
-commands = parser.add_argument_group("Commands")
-commands.add_argument("--prefix", "-p", metavar="str [, ...]", default="", type=str, help="Path prefix for search matches")
-commands.add_argument("--key", "-k", metavar="str", type=str, help="Primary key (column) for prefix mathces")
+commands = parser.add_argument_group("Arguments")
+commands.add_argument("--prefix", "-p", metavar="str [, ...]", default="", type=str, help="Prefixes for searching for matches")
+commands.add_argument("--key", "-k", metavar="str", type=str, help="Primary key in the table for searching for matches by prefix")
 commands.add_argument("--database", "-d", metavar="str", type=str, help="Database to connect")
-commands.add_argument("--table", "-t", metavar="str", type=str, required=True, help="Table for search matches")
-commands.add_argument("--checkout-only", action="store_true", help="Print only mutation status for table")
-commands.add_argument("--await-mutation-end", action="store_true", help="Lock script execution until the mutation completes")
-commands.add_argument("--config", metavar="file", type=str, required=False, help="Custom path to config file in yaml format")
+commands.add_argument("--table", "-t", metavar="str [, ...]", type=str, required=True, help="Tables for search")
+commands.add_argument("--checkout-only", "-S", action="store_true", help="Print only mutation status for table")
+commands.add_argument("--await-mutation-end", "-W", action="store_true", help="Lock script execution until the mutation completes")
+commands.add_argument("--force", "-f", action="store_true", help="Delete all matches without asking for confirmation (pretty output)")
+commands.add_argument("--config", "-c", metavar="file", type=str, required=False, help="Custom path to config file in yaml format")
 args = parser.parse_args()
 
-logger = logging.getLogger(__name__)
+
+# Configuration block
 homedir = os.path.expanduser('~')
 config_dir = os.path.join(homedir, '.config')
 config_file = args.config or os.path.join(config_dir, 'ch_cleaner.yaml')
@@ -87,34 +91,46 @@ def execute_sql(expression: str, result_format: str = "json") -> [str, dict]:
     """Execute SQL-query on ClickHouse server."""
     url = f"{ENDPOINT}/?user={CH_USER}&password={CH_PASSWD}&query={expression} FORMAT JSON"
     r = requests.post(url, headers=BASE_HEADERS)
-    logger.debug(r.text)
+    status = True if r.ok else False
 
     if not r.ok:
         raise RuntimeError(f"\nAn error occurred with the query: {expression}. \nHTTP {r.status_code}, Details: {r.text}")
 
     if result_format == "json":
-        return r.json().get("data", None) 
-    return r.text
+        return r.json().get("data", status)
+    return r.text or status
 
 
-def get_data(prefix: str, key: str, database: str, table: str) -> str:
-    """Return unique matches for the prefix."""
+def get_data(prefix: str, key: str, database: str, table: str) -> tuple:
+    """Return unique matches for the prefix or None if matches not found."""
     query = f"SELECT DISTINCT {key} " \
             f"FROM {database}.{table} " \
             f"WHERE match(Path, '^{prefix}')"
 
     result = [record["Path"] for record in execute_sql(query)]
-    paths = "\n".join(f"- {path}" for path in result)
+    matches = "\n".join(f"- {path}" for path in result)
 
     if not result:
-        return
-    return f"Matches found for the prefix '{prefix}': \n{paths}"
+        message = Color.make(f"No matches were found for the prefix '{prefix}'", "grey")
+        matches = None
+    else:
+        message = Color.make(f"\nMatches found for the prefix '{prefix}' (unique keys count: {len(result)})", "green")
+
+    return message, matches
 
 
 def delete_data(prefix: str, key: str, database: str, table: str) -> None:
-    """Deletes entries that fall under the expression."""
+    """Deletes entries that fall under the expression.
+    Changes (UPDATE, DELETE) in Clickhouse start the mutation process.
+    Read the documentation.
+    """
     query = f"ALTER TABLE {database}.{table} DELETE WHERE match ({key}, '^{prefix}')"
-    execute_sql(query, result_format="text")
+    metadata = f"source={database}.{table} key={key}, prefix={prefix}"
+
+    if execute_sql(query, result_format="text"):
+        print(metadata, Color.make(f"- OK", "green"))
+    else:
+        print(Color.make(f"Something went wrong... [{metadata}]", "red"))
 
 
 def mutation_status(data: list) -> tuple:
@@ -130,9 +146,11 @@ def check_mutations(database: str,
                     table: str,
                     await_complete: bool = False,
                     pretty: bool = True) -> None:
-    """Outputs information about all mutations for the table."""
+    """Outputs information about today mutations for the table."""
+    today = datetime.today().strftime("%Y-%m-%d")
     query = f"SELECT * FROM system.mutations " \
-            f"WHERE database='{database}' AND table='{table}'"
+            f"WHERE database='{database}' " \
+            f"AND table='{table}' AND toDate(create_time) = '{today}'"
 
     result = execute_sql(query)
     in_progress, total, completed, failed = mutation_status(result)
@@ -161,17 +179,30 @@ def run(prefix: str,
         database: str,
         table: str,
         check_only: bool = False,
+        force_delete: bool = False,
         await_complete: bool = False) -> None:
-    """Starts a prefix match search and checks for mutations."""
+    """Starts a prefix match search and checks for mutations.
+    The mutation is triggered even if no matches are found.
+    This is a feature of the database.
+    """
     if check_only:
         return check_mutations(database, table, pretty=False)
 
-    result = get_data(prefix, key, database, table)
-    if not result:
-        print(Color.make(f"No matches were found for the prefix '{prefix}'", "grey"), sep="")
+    if force_delete:
+        try:
+            delete_data(prefix, key, database, table)
+        except RuntimeError as error:
+            print(Color.make(error, "red"))
+        finally:
+            print(Color.make(f"Started a mutation for delete match({key}, '^{prefix}') in {database}.{table}", "grey"))
+            return
+
+    message, matches = get_data(prefix, key, database, table)
+    if not matches:
+        print(message, sep="")
         return
     else:
-        print("\n", Color.make(result, "green"), sep="")
+        print(message, matches, sep="\n")
 
     warning_message = Color.make("Do you want to delete them? [y/n]: ", "red")
     if input(warning_message).lower() in ["y", "yes", "да", "д"]:
@@ -188,22 +219,28 @@ def run(prefix: str,
 def main() -> None:
     prefixes = args.prefix.split(",")
     database = args.database or config.get("clickhouse", {}).get("database")
-    table = args.table
+    tables = args.table.split(",")
     match_key = args.key or config.get("clickhouse", {}).get("match_key")
     await_mutation_end = True if args.await_mutation_end else False
 
     if not args.table:
         raise RuntimeError("Table required, but no received. Use --table arg or --help")
-
     if not prefixes and not args.checkout_only:
         raise RuntimeError("Prefix required, but not received. Use --prefix arg or --help")
+    if args.force and args.checkout_only or args.await_mutation_end:
+        raise RuntimeError("'--force', '--await-mutation-end' and '--checkout-only' can't be passed together.")
 
     if args.checkout_only:
-        run("", match_key, database, table, check_only=True, await_complete=False)
+        for table in tables:
+            run("", match_key, database, table, check_only=True, await_complete=False)
         return
 
     for prefix in prefixes:
-        run(prefix, match_key, database, table, await_complete=await_mutation_end)
+        for table in tables:
+            run(prefix, match_key, database, table, force_delete=args.force, await_complete=await_mutation_end)
+
+    if args.force:
+        print("-" * 3, "For check the mutation status use the argument '--checkout-only' or '-S'", sep="\n")
 
 
 if __name__ == "__main__":
