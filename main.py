@@ -29,12 +29,12 @@ args = parser.parse_args()
 
 
 # Configuration block
-homedir = os.path.expanduser('~')
-config_dir = os.path.join(homedir, '.config')
-config_file = args.config or os.path.join(config_dir, 'ch_cleaner.yaml')
+homedir = os.path.expanduser("~")
+config_dir = os.path.join(homedir, ".config")
+config_file = args.config or os.path.join(config_dir, "ch_cleaner.yaml")
 
 try:
-    with open(config_file, 'r') as cfgfile:
+    with open(config_file, "r") as cfgfile:
         config = yaml.load(cfgfile, Loader=yaml.Loader)
         ENDPOINT = f"http://{config['clickhouse']['fqdn']}:{config['clickhouse']['http_port']}"
         CH_USER = config["clickhouse"]["user"]
@@ -62,7 +62,7 @@ class Color:
     END = "\033[0m"
 
     @staticmethod
-    def make(target: [str, list], color="white"):
+    def make(target: [str, list], color="white") -> [str, list]:
         """Colorize text and list objects.
 
         Available text colors:
@@ -87,7 +87,7 @@ class Color:
         return f"{color}{target}{end}"
 
 
-def execute_sql(expression: str, result_format: str = "json") -> [str, dict]:
+def execute_sql(expression: str, result_format: str = "json") -> [str, bool, dict]:
     """Execute SQL-query on ClickHouse server."""
     url = f"{ENDPOINT}/?user={CH_USER}&password={CH_PASSWD}&query={expression} FORMAT JSON"
     r = requests.post(url, headers=BASE_HEADERS)
@@ -105,9 +105,9 @@ def get_data(prefix: str, key: str, database: str, table: str) -> tuple:
     """Return unique matches for the prefix or None if matches not found."""
     query = f"SELECT DISTINCT {key} " \
             f"FROM {database}.{table} " \
-            f"WHERE match(Path, '^{prefix}')"
+            f"WHERE match({key}, '^{prefix}')"
 
-    result = [record["Path"] for record in execute_sql(query)]
+    result = [record[key] for record in execute_sql(query)]
     matches = "\n".join(f"- {path}" for path in result)
 
     if not result:
@@ -197,10 +197,10 @@ def run(prefix: str,
     if not matches:
         print(message, sep="")
         return
-    else:
-        print(message, matches, sep="\n")
 
+    print(message, matches, sep="\n")
     warning_message = Color.make("Do you want to delete them? [y/n]: ", "red")
+
     if input(warning_message).lower() in ["y", "yes", "да", "д"]:
         try:
             delete_data(prefix, key, database, table)
