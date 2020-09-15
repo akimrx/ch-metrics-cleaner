@@ -223,7 +223,7 @@ def main() -> None:
         raise RuntimeError("Table required, but no received. Use --table arg or --help")
     if not prefixes and not args.checkout_only:
         raise RuntimeError("Prefix required, but not received. Use --prefix arg or --help")
-    if args.force and args.checkout_only or args.await_mutation_end:
+    if args.force and args.checkout_only or args.await_mutation_end and args.force:
         raise RuntimeError("'--force', '--await-mutation-end' and '--checkout-only' can't be passed together.")
 
     if args.checkout_only:
