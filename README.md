@@ -27,6 +27,15 @@ clickhouse:
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+./clickhouse_cleaner.py
+```
+
+## Also, you can setup the script
+```bash
+cd clickhouse-cleaner
+make install
+make clean
+clickhouse-cleaner --help
 ```
 
 ## Enjoy
@@ -43,11 +52,11 @@ python3 main.py \
 
 ## Help message
 ```
-usage: main.py [-h] [--prefix str [, ...]] [--key str] [--database str]
-               --table str [, ...] [--checkout-only] [--await-mutation-end]
-               [--force] [--config file]
+usage: clickhouse-cleaner [-h] [--prefix str [, ...]] [--key str] [--database str]
+                          --table str [, ...] [--checkout-only] [--await-mutation-end]
+                          [--force] [--config file]
 
-ClickHouse old metrics cleaner
+ClickHouse data cleaner
 
 optional arguments:
   -h, --help                            show this help message and exit
