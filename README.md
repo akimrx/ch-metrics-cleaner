@@ -40,9 +40,9 @@ clickhouse-cleaner --help
 
 ## Enjoy
 ```bash
-python3 main.py \
+clickhouse-cleaner \
 --database=production \
---table=graphite \
+--table=graphite,graphite_index \
 --key=Hostname \
 --prefix=desktop01,desktop02 \
 --await-mutation-end \
